@@ -83,31 +83,40 @@ For detailed build instructions, see the [Flet Documentation](https://docs.flet.
 ## Project Structure
 
 ```
-focusbreaker/
-├── main.py                 # Entry point, tray setup
-├── ui/
-│   ├── main_window.py     # Task creation
-│   ├── break_window.py    # Break pop-ups
-│   └── settings.py        # Settings panel
-│   └── analytics.py       # Dashboard
-├── core/
-│   ├── timer.py           # Work/break timers
-│   ├── scheduler.py       # Break scheduling
-│   ├── mode_controller.py # Mode logic
-│   ├── streak_manager.py  # Streak calculations
-│   └── escape_hatch.py    # Emergency exit handler
-├── system/
-│   ├── audio.py           # Sound control
-│   ├── display.py         # Brightness/fullscreen
-│   └── input_blocker.py   # Strict mode input blocking
-├── data/
-│   ├── database.py        # DB operations
-│   └── models.py          # Dataclasses
-├── assets/
-│   └── media/             # Media files
-├── config.py              # Configuration
-├── requirements.txt
-└── README.md
+focusBreaker/
+├── docs/
+│   └── specification.md  # Complete feature spec and technical details
+├── pyproject.toml        # Project configuration and dependencies
+├── README.md             # This file - project overview and setup
+├── src/
+│   ├── assets/
+│   │   ├── icon.png      # App icon
+│   │   ├── media/        # Media files for breaks
+│   │   └── splash_android.png  # Android splash screen
+│   ├── config.py         # Configuration settings
+│   ├── core/
+│   │   ├── escape_hatch.py     # Emergency exit system
+│   │   ├── mode_controller.py  # Work mode logic
+│   │   ├── scheduler.py        # Break scheduling
+│   │   ├── session_manager.py  # Session handling
+│   │   ├── streak_manager.py   # Streak calculations
+│   │   └── timer.py            # Timer implementation
+│   ├── data/
+│   │   ├── db.py         # Database operations
+│   │   └── models.py     # Data models
+│   ├── main.py           # Application entry point
+│   ├── requirements.txt  # Python dependencies
+│   ├── system/
+│   │   ├── audio.py      # Audio control
+│   │   ├── display.py    # Display/screen management
+│   │   └── input_blocker.py  # Input blocking for strict mode
+│   ├── tests/
+│   │   └── test_timer.py # Timer unit tests
+│   └── ui/
+│       ├── analytics.py  # Analytics dashboard
+│       ├── break_window.py    # Break pop-up windows
+│       ├── main_window.py     # Main application window
+│       └── settings.py        # Settings panel
 ```
 
 ## Specification
