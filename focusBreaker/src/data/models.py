@@ -2,7 +2,7 @@
 Data Models - Dataclasses and Enums
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
 
@@ -132,6 +132,11 @@ class Settings:
     enable_break_music: bool
     shuffle_media: bool
     allow_skip_in_normal_mode: bool
+
+    escape_hatch_enabled: bool
+    escape_hatch_key_combo: str
+    escape_hatch_hold_duration_seconds: int
+    escape_hatch_debounce_ms: int
 
     created_at: str
     updated_at: str

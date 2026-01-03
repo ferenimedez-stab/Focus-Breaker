@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any
 class DBManager:
     def __init__(self, db_path: str = "focusbreaker.db"):
         self.db_path = db_path
-        self.conn: Optional[sqlite3.Connection] = None
+        self.conn = None
     
     def connect(self):
         """Establish database connection"""
@@ -28,6 +28,7 @@ class DBManager:
     def init_database(self):
         """Initialize all database tables"""
         self.connect()
+        assert self.conn is not None
         cursor = self.conn.cursor()
 
         # Task table
@@ -134,8 +135,32 @@ class DBManager:
                        enable_break_music BOOLEAN DEFAULT 0,
                        shuffle_media BOOLEAN DEFAULT 1,
                        allow_skip_in_normal_mode BOOLEAN DEFAULT 1,
+                       escape_hatch_enabled BOOLEAN DEFAULT 1,
+                       escape_hatch_key_combo TEXT DEFAULT 'ctrl+alt+shift+e',
+                       escape_hatch_hold_duration_seconds INTEGER DEFAULT 3,
+                       escape_hatch_debounce_ms INTEGER DEFAULT 100,
                        created_at TEXT NOT NULL,
                        updated_at TEXT NOT NULL
+                       )
+                """)
+        
+        # Activity Logs table for detailed event tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                       id INTEGER PRIMARY KEY AUTOINCREMENT,
+                       timestamp TEXT NOT NULL,
+                       event_type TEXT NOT NULL,
+                       event_category TEXT NOT NULL CHECK(event_category IN (
+                           'session', 'break', 'streak', 'settings', 'system', 'user_action'
+                       )),
+                       session_id INTEGER,
+                       break_id INTEGER,
+                       details TEXT,  -- JSON string with event-specific data
+                       severity TEXT DEFAULT 'info' CHECK(severity IN ('debug', 'info', 'warning', 'error')),
+                       user_message TEXT,  -- Human-readable message
+                       metadata TEXT,  -- Additional structured data as JSON
+                       FOREIGN KEY (session_id) REFERENCES work_sessions(id),
+                       FOREIGN KEY (break_id) REFERENCES breaks(id)
                        )
                 """)
         
@@ -157,7 +182,22 @@ class DBManager:
         
         cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_sessions_archived
-                ON work_sessions(created_at)
+                ON work_sessions(archived)
+                """)
+        
+        cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_timestamp
+                ON activity_logs(timestamp)
+                """)
+        
+        cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_event_type
+                ON activity_logs(event_type)
+                """)
+        
+        cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_category
+                ON activity_logs(event_category)
                 """)
     
         # Initialise default settings if not exists
@@ -207,6 +247,7 @@ class DBManager:
 # ====================================== TASKS OPERATIONS =====================================
     def createTask(self, task) -> int:
         """Create a new task and return its ID"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""  
                         INSERT INTO tasks (
@@ -221,10 +262,11 @@ class DBManager:
                         task.break_duration_minutes, task.created_at
                         ))
         self.conn.commit()
-        return cursor.lastrowid
+        return cursor.lastrowid if cursor.lastrowid is not None else 0
 
     def getTask(self, task_id: int):
         """Get a task by ID"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
         row = cursor.fetchone()
@@ -236,17 +278,19 @@ class DBManager:
 
     def getAllTasks(self, limit: int = 50) -> List:
         """Get all tasks, most recent first"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
-                       SELECT * FROM TASKS
+                       SELECT * FROM tasks
                        ORDER BY created_at DESC
                        LIMIT ?
-                       """, (limit))
+                       """, (limit,))
         from data.models import Task
         return [Task(**dict(row)) for row in cursor.fetchall()]
     
     def updateTask(self, task_id: int, **kwargs):
         """Update task fields"""
+        assert self.conn is not None
         fields = []
         values = []
         for key, value in kwargs.items():
@@ -257,11 +301,12 @@ class DBManager:
         query = f"UPDATE tasks SET {', '.join(fields)} WHERE id = ?"
 
         cursor = self.conn.cursor() 
-        cursor.execute(query, values)
+        cursor.execute(query, tuple(values))
         self.conn.commit()
 
     def deleteTask(self, task_id: int):
         """Delete a task"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         self.conn.commit()
@@ -269,7 +314,8 @@ class DBManager:
 # ================================== WORK SESSIONS OPERATIONS =================================
     def createSession(self, session) -> int:
         """Create a new work session and return its ID"""
-        cursor = self.conn.cursor()
+        assert self.conn is not None
+        cursor = self.conn.cursor()  # type: ignore
         cursor.execute("""  
                         INSERT INTO work_sessions (
                             task_id, start_time, end_time,
@@ -287,11 +333,12 @@ class DBManager:
                         session.extended_count, session.emergency_exits,
                         session.created_at
                         ))
-        self.conn.commit()
-        return cursor.lastrowid
+        self.conn.commit()  # type: ignore
+        return cursor.lastrowid if cursor.lastrowid is not None else 0
     
     def getSession(self, session_id: int):
         """Get a work session by ID"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
         row = cursor.fetchone()
@@ -303,27 +350,29 @@ class DBManager:
     
     def getSessionsByTask(self, task_id: int, include_archived: bool = False) -> List:
         """Get all sessions for a specific task"""
-        cursor = self.conn.cursor()
+        assert self.conn is not None
+        cursor = self.conn.cursor()  # type: ignore
 
         if include_archived:
             cursor.execute("""
                            SELECT * from work_sessions
                            WHERE task_id = ?
                            ORDER BY start_time DESC
-                        """, (task_id))
+                        """, (task_id,))
         
         else:
             cursor.execute("""
                            SELECT * from work_sessions
                            WHERE task_id = ? AND archived = 0
                            ORDER BY start_time DESC 
-                        """, (task_id))
+                        """, (task_id,))
         
         from data.models import WorkSession
         return [WorkSession(**dict(row)) for row in cursor.fetchall()]
     
     def getActiveSession(self):
         """Get the currently active session"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
                        SELECT * FROM work_sessions
@@ -340,6 +389,7 @@ class DBManager:
     
     def getRecentSessions(self, limit: int = 20, include_archived: bool = False) -> List:
         """Get recent sessions"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
 
         if include_archived:
@@ -347,7 +397,7 @@ class DBManager:
                            SELECT * FROM work_sessions
                            ORDER BY start_time DESC
                            LIMIT ?
-                        """, (limit))
+                        """, (limit,))
         
         else:
             cursor.execute("""
@@ -355,12 +405,13 @@ class DBManager:
                            WHERE archived = 0
                            ORDER BY start_time DESC
                            LIMIT ?
-                        """, (limit))
+                        """, (limit,))
         
         from data.models import WorkSession
         return [WorkSession(**dict(row)) for row in cursor.fetchall()]
     
     def updateSession(self, session_id: int, **kwargs):
+        assert self.conn is not None
         fields = []
         values = []
 
@@ -372,7 +423,7 @@ class DBManager:
         query = f"UPDATE work_sessions SET {', '.join(fields)} WHERE id = ?"
 
         cursor = self.conn.cursor()
-        cursor.execute(query, values)
+        cursor.execute(query, tuple(values))
         self.conn.commit()
 
     def archiveSession(self, session_id: int):
@@ -385,19 +436,21 @@ class DBManager:
     
     def getArchivedSessions(self, limit: int = 50) -> List:
         """Get all archived sessions"""        
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
                        SELECT * FROM work_sessions
                        WHERE archived = 1
                        ORDER BY created_at DESC
                        LIMIT ?
-                    """, (limit))
+                    """, (limit,))
         
         from data.models import WorkSession
         return [WorkSession(**dict(row)) for row in cursor.fetchall()]
     
     def permanentlyDeleteSession(self, session_id: int):
         """ Permanent deletion of session"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM breaks WHERE session_id = ? ", (session_id,))
         cursor.execute("DELETE FROM work_sessions WHERE id = ? ", (session_id,))
@@ -406,6 +459,7 @@ class DBManager:
 # ====================================== BREAK OPERATIONS =====================================
     def createBreak(self, break_obj) -> int:
         """Create a new break and return its ID"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
                        INSERT INTO breaks (
@@ -419,10 +473,11 @@ class DBManager:
                         break_obj.snooze_duration_minutes, break_obj.created_at
                     ))
         self.conn.commit()
-        return cursor.lastrowid
+        return cursor.lastrowid if cursor.lastrowid is not None else 0
     
     def getBreak(self, break_id: int):
         """Get a break by ID"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("SELECT * from breaks WHERE id = ?", (break_id,))
 
@@ -434,25 +489,27 @@ class DBManager:
     
     def getSessionBreaks(self, session_id: int) -> List:
         """Get all breaks for a session"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
                        SELECT * FROM breaks
                        WHERE session_id = ?
                        ORDER by scheduled_time
-                    """, (session_id))
+                    """, (session_id,))
         
         from data.models import Break
         return [Break(**dict(row)) for row in cursor.fetchall()]
 
     def getNextPendingBreak(self, session_id: int):
         """Get the next pending break for a session"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
                        SELECT * FROM breaks
                        WHERE session_id = ? AND status = 'pending'
                        ORDER BY scheduled_time
                        LIMIT 1
-                    """, (session_id))
+                    """, (session_id,))
         
         row = cursor.fetchone()
         if row:
@@ -462,18 +519,20 @@ class DBManager:
     
     def getPendingBreaks(self, session_id: int) -> List:
         """Get all pending breaks for a session"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
                        SELECT * FROM breaks
                        WHERE session_id = ? AND status = 'pending'
                        ORDER BY scheduled_time
-                    """, (session_id))
+                    """, (session_id,))
         
         from data.models import Break
         return [Break(**dict(row)) for row in cursor.fetchall()]
 
     def updateBreak(self, break_id: int, **kwargs):
         """Update break fields"""
+        assert self.conn is not None
         fields = []
         values = []
 
@@ -485,13 +544,18 @@ class DBManager:
         query = f"UPDATE breaks SET {', '.join(fields)} WHERE id = ?"
 
         cursor = self.conn.cursor()
-        cursor.execute(query, values)
+        cursor.execute(query, tuple(values))
         self.conn.commit()
 
     def scheduleBreaksForSessions(self, session_id: int, mode: str, work_duration_minutes: int) -> List[int]:
         """Schedule breaks for a session base on mode and duration; returns list of break IDs"""
+        assert self.conn is not None
         settings = self.getSettings()
+        if settings is None:
+            return []
         session = self.getSession(session_id)
+        if session is None:
+            return []
         start_time = datetime.fromisoformat(session.start_time)
 
         # Get mode-specific intervals
@@ -537,6 +601,7 @@ class DBManager:
 # =================================== BREAK MEDIA OPERATIONS ==================================
     def createBreakMedia(self, media) -> int:
         """Add new media to library"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
                        INSERT INTO break_media (
@@ -550,10 +615,11 @@ class DBManager:
                       ))
         
         self.conn.commit()
-        return cursor.lastrowid
+        return cursor.lastrowid if cursor.lastrowid is not None else 0
     
     def getMedia(self, media_id: int):
         """Get media by ID"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM break_media WHERE id = ?", (media_id,))
 
@@ -563,8 +629,9 @@ class DBManager:
             return BreakMedia(**dict(row))
         return None
     
-    def getAllMedia(self, mode: str = None, include_jumpscares: bool = False) -> List:
+    def getAllMedia(self, mode: Optional[str] = None, include_jumpscares: bool = False) -> List:
         """ Get all media, optionally filtered by mode"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
 
         if mode:
@@ -602,6 +669,7 @@ class DBManager:
     
     def getRandomMedia(self, mode: str):
         """Get random media for break"""
+        assert self.conn is not None
         import random
         cursor = self.conn.cursor()
 
@@ -638,6 +706,7 @@ class DBManager:
     
     def updateMedia(self, media_id: int, **kwargs):
         """Update media fields"""
+        assert self.conn is not None
         fields = []
         values = []
 
@@ -649,11 +718,12 @@ class DBManager:
         query = f"UPDATE break_media SET {', '.join(fields)} WHERE id = ?"
 
         cursor = self.conn.cursor()
-        cursor.execute(query, values)
+        cursor.execute(query, tuple(values))
         self.conn.commit()
 
     def deleteMedia(self, media_id: int):
         """Delete media from library"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM break_media WHERE id = ?", (media_id,))
         self.conn.commit()
@@ -665,6 +735,7 @@ class DBManager:
 # ===================================== STREAK OPERATIONS ====================================
     def getStreak(self, streak_type: str):
         """Get a streak by type"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
                        SELECT * FROM streaks WHERE streak_type = ?
@@ -677,8 +748,9 @@ class DBManager:
         return None
     
     def updateStreak(self, streak_type: str, current_count: int,
-                     best_count: int, metadata: Dict[str, Any] = None):
+                     best_count: int, metadata: Optional[Dict[str, Any]] = None):
         """Update a streak"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("""
                        UPDATE streaks 
@@ -694,6 +766,7 @@ class DBManager:
     
     def getAllStreaks(self) -> List:
         """Get all streaks"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM streaks")
 
@@ -702,13 +775,16 @@ class DBManager:
     
     def resetStreak(self, streak_type: str):
         """Reset a streak to 0"""
-        self.updateStreak(streak_type, 0, self.getStreak(streak_type).best_count)
+        streak = self.getStreak(streak_type)
+        if streak:
+            self.updateStreak(streak_type, 0, streak.best_count)
 
     def incrementStreak(self, streak_type: str):
         """Increment a streak by 1"""
         streak = self.getStreak(streak_type)
-        new_count = streak.current_count + 1
-        new_best = max(streak.best_count, new_count)
+        if streak:
+            new_count = streak.current_count + 1
+            new_best = max(streak.best_count, new_count)
         
         self.updateStreak(streak_type, new_count, new_best)
 
@@ -767,10 +843,12 @@ class DBManager:
                              scheduled_time = current_time.isoformat(),
                              status = 'pending')
     
-    def snoozeBreak(self, break_id: int, session_id: int, snooze_duration_minutes: int = None):
+    def snoozeBreak(self, break_id: int, session_id: int, snooze_duration_minutes: Optional[int] = None):
         """Snooze a break: delays and redistributes remaining breaks if enabled"""
         # Get settings for snooze duration
         settings = self.getSettings()
+        if settings is None:
+            return False
         if snooze_duration_minutes is None:
             snooze_duration_minutes = settings.normal_break_duration_minutes
 
@@ -806,13 +884,15 @@ class DBManager:
     def resetSnoozePasses(self, session_id: int):
         """Reset snooze passes to maximum (for extending sessions)"""
         settings = self.getSettings()
-        self.updateSession(session_id,
-                           snooze_passes_remaining = settings.max_snooze_passes)
+        if settings:
+            self.updateSession(session_id,
+                               snooze_passes_remaining = settings.max_snooze_passes)
                            
 
 # ==================================== SETTINGS OPERATIONS ===================================
     def getSettings(self):
         """Get application settings"""
+        assert self.conn is not None
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM settings LIMIT 1")
 
@@ -824,6 +904,7 @@ class DBManager:
     
     def updateSettings(self, **kwargs):
         """Update application settings"""
+        assert self.conn is not None
         fields = []
         values = []
 
@@ -837,12 +918,13 @@ class DBManager:
         query = f"UPDATE settings SET {', '.join(fields)} WHERE id = 1"
 
         cursor = self.conn.cursor()
-        cursor.execute(query, values)
+        cursor.execute(query, tuple(values))
         self.conn.commit()
 
 # =================================== ANALYTICS OPERATIONS ===================================
     def getSessionStats(self, days: int = 30) -> Dict[str, Any]:
         """Get session statistics for the past N days"""
+        assert self.conn is not None
         cutoff_date = (datetime.now() - timedelta(days = days)).isoformat()
         
         cursor = self.conn.cursor()    
@@ -865,6 +947,7 @@ class DBManager:
     
     def getDailyActivity(self, days: int = 30) -> List[Dict[str, Any]]:
         """Get daily activity breakdown"""
+        assert self.conn is not None
         cutoff_date = (datetime.now() - timedelta(days = days)).isoformat()
 
         cursor = self.conn.cursor()
@@ -884,6 +967,7 @@ class DBManager:
     
     def getBreakComplianceRate(self, days: int = 30) -> float:
         """Calculate break compliance rate (percentage of breaks taken)"""
+        assert self.conn is not None
         cutoff_date = (datetime.now() - timedelta(days = days)).isoformat()
 
         cursor = self.conn.cursor()
@@ -912,6 +996,7 @@ class DBManager:
         
     def getModeDistribution(self, include_archived: bool = False) -> Dict[str, int]:
         """Get distribution of work modes used"""
+        assert self.conn is not None
         archived_filter = "" if include_archived else "WHERE archived = 0"
         cursor = self.conn.cursor()
         cursor.execute(f"""
@@ -925,6 +1010,7 @@ class DBManager:
     
     def getQualityScores(self, days: int = 30, include_archived: bool = False) -> List[Dict[str, Any]]:
         """Get quality scores for recent sessions"""
+        assert self.conn is not None
         cutoff_date = (datetime.now() - timedelta(days = days)).isoformat()
         archived_filter = "" if include_archived else "AND archived = 0"
         
@@ -959,6 +1045,7 @@ class DBManager:
     
     def getTotalWorkTime(self, include_archived: bool = False) -> int:
         """Get total work time in minutes (all time)"""
+        assert self.conn is not None
         archived_filter = "" if include_archived else "AND archived = 0"
         
         cursor = self.conn.cursor()
@@ -973,6 +1060,7 @@ class DBManager:
     
     def getMostProductiveDay(self, include_archived: bool = False) -> Optional[str]:
         """Get the day with most work done"""
+        assert self.conn is not None
         archived_filter = "" if include_archived else "AND archived = 0"
         
         cursor = self.conn.cursor()
@@ -990,6 +1078,7 @@ class DBManager:
     
     def getSnoozePassUsageStats(self, days: int = 30, include_archived: bool = False) -> Dict[str, Any]:
         """Get pass usage statistics"""
+        assert self.conn is not None
         cutoff_date = (datetime.now() - timedelta(days = days)).isoformat()
         archived_filter = "" if include_archived else "AND archived = 0"
         
@@ -1011,7 +1100,7 @@ class DBManager:
     def getSnoozePassExhaustionRate(self, days: int = 30, include_archived: bool = False) -> float:
         """Calculate how often users exhaust all snooze passes; 
         returns percentage of sessions where all snooze passes were used"""
-
+        assert self.conn is not None
         cutoff_date = (datetime.now() - timedelta(days = days)).isoformat()
         archived_filter = "" if include_archived else "AND archived = 0"
         
@@ -1031,6 +1120,7 @@ class DBManager:
     
     def getAvgSnoozePassesRemaining(self, days: int = 30, include_archived: bool = False) -> float:
         """Average snooze passes left at end of sessions"""
+        assert self.conn is not None
         cutoff_date = (datetime.now() - timedelta(days = days)).isoformat()
         archived_filter = "" if include_archived else "AND archived = 0"
         
@@ -1046,6 +1136,7 @@ class DBManager:
     
     def getModeSnoozeComparison(self, include_archived: bool = False) -> Dict[str, Dict]:
         """Compare snooze usage across different modes"""
+        assert self.conn is not None
         archived_filter = "" if include_archived else "WHERE archived = 0"
         
         cursor = self.conn.cursor()
@@ -1067,3 +1158,312 @@ class DBManager:
                                     'avg_passes_left': row['avg_passes_left']}
         
         return results
+
+# ====================================== ACTIVITY LOGGING =====================================
+
+    def logEvent(self, event_type: str, event_category: str, 
+                 session_id: Optional[int] = None, break_id: Optional[int] = None,
+                 details: Optional[Dict[str, Any]] = None, 
+                 severity: str = 'info', user_message: Optional[str] = None,
+                 metadata: Optional[Dict[str, Any]] = None) -> int:
+        """Log an activity event"""
+        assert self.conn is not None
+        cursor = self.conn.cursor()
+        
+        details_json = json.dumps(details) if details else None
+        metadata_json = json.dumps(metadata) if metadata else None
+        
+        cursor.execute("""
+            INSERT INTO activity_logs (
+                timestamp, event_type, event_category, session_id, break_id,
+                details, severity, user_message, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            datetime.now().isoformat(),
+            event_type,
+            event_category,
+            session_id,
+            break_id,
+            details_json,
+            severity,
+            user_message,
+            metadata_json
+        ))
+        
+        self.conn.commit()
+        return cursor.lastrowid     #type: ignore
+    
+    def logSessionEvent(self, event_type: str, session_id: int, 
+                       details: Optional[Dict[str, Any]] = None,
+                       user_message: Optional[str] = None) -> int:
+        """Log a session-related event"""
+        return self.logEvent(
+            event_type=event_type,
+            event_category='session',
+            session_id=session_id,
+            details=details,
+            user_message=user_message
+        )
+    
+    def logBreakEvent(self, event_type: str, session_id: int, break_id: int,
+                     details: Optional[Dict[str, Any]] = None,
+                     user_message: Optional[str] = None) -> int:
+        """Log a break-related event"""
+        return self.logEvent(
+            event_type=event_type,
+            event_category='break',
+            session_id=session_id,
+            break_id=break_id,
+            details=details,
+            user_message=user_message
+        )
+    
+    def logSystemEvent(self, event_type: str, details: Optional[Dict[str, Any]] = None,
+                      severity: str = 'info', user_message: Optional[str] = None) -> int:
+        """Log a system event (errors, warnings, etc.)"""
+        return self.logEvent(
+            event_type=event_type,
+            event_category='system',
+            details=details,
+            severity=severity,
+            user_message=user_message
+        )
+    
+    def logUserAction(self, event_type: str, details: Optional[Dict[str, Any]] = None,
+                     user_message: Optional[str] = None) -> int:
+        """Log a user action (settings change, mode switch, etc.)"""
+        return self.logEvent(
+            event_type=event_type,
+            event_category='user_action',
+            details=details,
+            user_message=user_message
+        )
+    
+    def logStreakEvent(self, event_type: str, details: Optional[Dict[str, Any]] = None,
+                      user_message: Optional[str] = None) -> int:
+        """Log a streak-related event"""
+        return self.logEvent(
+            event_type=event_type,
+            event_category='streak',
+            details=details,
+            user_message=user_message
+        )
+    
+    def getActivityLogs(self, limit: int = 100, event_category: Optional[str] = None,
+                       event_type: Optional[str] = None, session_id: Optional[int] = None,
+                       severity: Optional[str] = None, days: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get activity logs with optional filtering"""
+        assert self.conn is not None
+        cursor = self.conn.cursor()
+        
+        conditions = []
+        params = []
+        
+        if event_category:
+            conditions.append("event_category = ?")
+            params.append(event_category)
+        
+        if event_type:
+            conditions.append("event_type = ?")
+            params.append(event_type)
+        
+        if session_id:
+            conditions.append("session_id = ?")
+            params.append(session_id)
+        
+        if severity:
+            conditions.append("severity = ?")
+            params.append(severity)
+        
+        if days:
+            cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+            conditions.append("timestamp >= ?")
+            params.append(cutoff_date)
+        
+        where_clause = " AND ".join(conditions) if conditions else ""
+        if where_clause:
+            where_clause = f"WHERE {where_clause}"
+        
+        cursor.execute(f"""
+            SELECT * FROM activity_logs
+            {where_clause}
+            ORDER BY timestamp DESC
+            LIMIT ?
+        """, params + [limit])
+        
+        logs = []
+        for row in cursor.fetchall():
+            log_entry = dict(row)
+            # Parse JSON fields
+            if log_entry['details']:
+                log_entry['details'] = json.loads(log_entry['details'])
+            if log_entry['metadata']:
+                log_entry['metadata'] = json.loads(log_entry['metadata'])
+            logs.append(log_entry)
+        
+        return logs
+    
+    def getEventCounts(self, days: int = 7, event_category: Optional[str] = None) -> Dict[str, int]:
+        """Get event type counts for the specified period"""
+        assert self.conn is not None
+        cursor = self.conn.cursor()
+        
+        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+        category_filter = "AND event_category = ?" if event_category else ""
+        params = [cutoff_date]
+        if event_category:
+            params.append(event_category)
+        
+        cursor.execute(f"""
+            SELECT event_type, COUNT(*) as count
+            FROM activity_logs
+            WHERE timestamp >= ? {category_filter}
+            GROUP BY event_type
+            ORDER BY count DESC
+        """, params)
+        
+        return {row['event_type']: row['count'] for row in cursor.fetchall()}
+    
+    # =================================== DATA EXPORT/IMPORT ===================================
+    def exportData(self, include_logs: bool = False) -> Dict[str, Any]:
+        """Export all database data to JSON format"""
+        assert self.conn is not None
+        
+        export_data = {
+            'export_timestamp': datetime.now().isoformat(),
+            'version': '1.0',
+            'tables': {}
+        }
+        
+        # Tables to export
+        tables = [
+            'tasks', 'work_sessions', 'breaks', 'break_media', 
+            'streaks', 'settings', 'activity_logs'
+        ]
+        
+        if not include_logs:
+            tables.remove('activity_logs')
+        
+        cursor = self.conn.cursor()
+        
+        for table in tables:
+            try:
+                cursor.execute(f"SELECT * FROM {table}")
+                rows = cursor.fetchall()
+                
+                # Convert rows to dicts
+                table_data = []
+                for row in rows:
+                    row_dict = dict(row)
+                    # Convert bytes to strings for JSON serialization
+                    for key, value in row_dict.items():
+                        if isinstance(value, bytes):
+                            row_dict[key] = value.decode('utf-8', errors='ignore')
+                    table_data.append(row_dict)
+                
+                export_data['tables'][table] = table_data
+                
+            except Exception as e:
+                print(f"Warning: Could not export table {table}: {e}")
+                export_data['tables'][table] = []
+        
+        return export_data
+    
+    def importData(self, import_data: Dict[str, Any], overwrite: bool = False) -> Dict[str, Any]:
+        """Import data from JSON export format"""
+        assert self.conn is not None
+        
+        results = {
+            'success': True,
+            'imported_tables': {},
+            'errors': []
+        }
+        
+        if 'tables' not in import_data:
+            results['success'] = False
+            results['errors'].append("Invalid import data format")
+            return results
+        
+        cursor = self.conn.cursor()
+        
+        # Tables to import (in dependency order)
+        import_order = ['settings', 'tasks', 'work_sessions', 'breaks', 'break_media', 'streaks']
+        
+        for table in import_order:
+            if table not in import_data['tables']:
+                continue
+                
+            table_data = import_data['tables'][table]
+            if not table_data:
+                continue
+            
+            try:
+                # Get column names from first row
+                if table_data:
+                    columns = list(table_data[0].keys())
+                    
+                    # Remove auto-increment columns for import
+                    if 'id' in columns and table in ['tasks', 'work_sessions', 'breaks', 'break_media']:
+                        columns.remove('id')
+                    
+                    # Clear table if overwrite is enabled
+                    if overwrite:
+                        cursor.execute(f"DELETE FROM {table}")
+                    
+                    # Insert data
+                    placeholders = ','.join(['?' for _ in columns])
+                    columns_str = ','.join(columns)
+                    
+                    imported_count = 0
+                    for row in table_data:
+                        values = [row.get(col) for col in columns]
+                        cursor.execute(f"INSERT OR REPLACE INTO {table} ({columns_str}) VALUES ({placeholders})", values)
+                        imported_count += 1
+                    
+                    results['imported_tables'][table] = imported_count
+                    
+            except Exception as e:
+                results['errors'].append(f"Error importing {table}: {str(e)}")
+                results['success'] = False
+        
+        if results['success']:
+            self.conn.commit()
+        
+        return results
+    
+    def exportToFile(self, filepath: str, include_logs: bool = False) -> bool:
+        """Export database to JSON file"""
+        try:
+            data = self.exportData(include_logs)
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"Export failed: {e}")
+            return False
+    
+    def importFromFile(self, filepath: str, overwrite: bool = False) -> Dict[str, Any]:
+        """Import database from JSON file"""
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return self.importData(data, overwrite)
+        except Exception as e:
+            return {
+                'success': False,
+                'errors': [f"Import failed: {str(e)}"],
+                'imported_tables': {}
+            }
+    
+    def cleanupOldLogs(self, days_to_keep: int = 90) -> int:
+        """Delete logs older than specified days, returns number of deleted records"""
+        assert self.conn is not None
+        cursor = self.conn.cursor()
+        
+        cutoff_date = (datetime.now() - timedelta(days=days_to_keep)).isoformat()
+        cursor.execute("DELETE FROM activity_logs WHERE timestamp < ?", (cutoff_date,))
+        
+        deleted_count = cursor.rowcount
+        self.conn.commit()
+        
+        return deleted_count

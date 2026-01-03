@@ -1,23 +1,23 @@
 [project]
 name = "focusbreaker"
 version = "0.1.0"
-description = ""
+description = "FocusBreaker is a customizable productivity timer app built with Python and Flet."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
     { name = "Fernanne Hannah A. Enimedez", email = "enimedezfh@example.com" }
 ]
 dependencies = [
-  "flet>=0.80.0"
+  "flet>=0.80.1"
 ]
 
 [dependency-groups]
 dev = [
-  "flet[all]>=0.80.0",
+  "flet[all]>=0.80.1",
 ]
 
 [tool.flet]
-org = "com.mycompany"
+org = ""
 product = "focusbreaker"
 company = "Flet"
 copyright = "Copyright (C) 2026 by Flet"

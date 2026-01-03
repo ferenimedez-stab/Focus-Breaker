@@ -16,7 +16,7 @@
 - Break duration: 5 minutes (customizable)
 - Break behavior:
   - Pop-up window (small, movable, always-on-top)
-  - Media plays (jump scares + user uploads, randomized)
+  - Media plays (surprise effects + user uploads, randomized)
   - Countdown timer visible
   - Three buttons available: [Take Break] [Snooze] [Skip]
   - Buttons stay active entire break (temptation design)
@@ -31,7 +31,7 @@
 - Break duration: 17 minutes (customizable)
 - Break behavior:
   - Full-screen overlay (cannot minimize, cannot escape normally)
-  - Media plays (jump scares + user uploads, randomized)
+  - Media plays (intense effects + user uploads, randomized)
   - Countdown timer visible
   - NO snooze/skip buttons
   - Must wait entire duration
@@ -47,7 +47,7 @@
 - Work interval: No breaks during entire allocated time
 - Break behavior: NONE during work
 - Session end:
-  - Media plays (jump scare or user media) - ONE dramatic signal
+  - Media plays (session-end signal or user media) - ONE dramatic signal
   - Full-screen overlay
   - Mandatory break: 30 minutes minimum (adjustable)
   - Can scale with work duration:
@@ -64,9 +64,9 @@
   - Videos: MP4 only
   - Images: JPG, PNG only
 - **Media Categories by Mode:**
-  - Normal Mode: Jump scares + motivational quotes + hydration reminders + user uploads
-  - Strict Mode: Intense jump scares + warnings + user uploads
-  - Focused Mode: Session-end jump scares + rest reminders + user uploads
+  - Normal Mode: Surprise effects + motivational quotes + hydration reminders + user uploads
+  - Strict Mode: Intense effects + warnings + user uploads
+  - Focused Mode: Session-end signals + rest reminders + user uploads
 - **Media Storage:**
   ```
   assets/
@@ -82,15 +82,15 @@
   │       └── user/
   ```
 - **Media Behavior:**
-  - Selection: Random from enabled pool + always include hidden jump scare
-  - Hidden jump scares: Cannot be disabled, encrypted folder (future enhancement)
+  - Selection: Random from enabled pool + always include hidden surprise effect
+  - Hidden surprise effects: Cannot be disabled, encrypted folder (future enhancement)
   - User uploads: Unlimited, automatically enabled
   - Shuffle: Randomized order, prevent repeats if possible
   - One media per break: No slideshows
 - **Default Media:**
-  - App comes with default jump scares (non-negotiable)
+  - App comes with default surprise effects (non-negotiable)
   - Fallback "Take a Break" image/video if no media set
-  - User won't see jump scares in settings UI (hidden)
+  - User won't see surprise effects in settings UI (hidden)
 
 ### 4. System Tray Integration
 - Runs in background: Not a visible window application
@@ -105,17 +105,17 @@
 
 ### 5. Audio & Visual Controls
 - **Volume Settings:**
-  - Jump scare volume (0-100, default: 80)
+  - Surprise effect volume (0-100, default: 80)
   - Alarm volume (0-100, default: 70)
   - Break music volume (0-100, default: 50)
 - **Visual Settings:**
-  - Jump scare brightness (0-100, default: 100 - max)
-  - Screen brightness boost during jump scares
+  - Surprise effect brightness (0-100, default: 100 - max)
+  - Screen brightness boost during surprise effects
 - **Timing Settings:**
   - Alarm duration (seconds, default: 5)
   - Image display duration (seconds, default: 5)
 - **Audio Events:**
-  - Break start: Jump scare/media with boosted volume
+  - Break start: Surprise effect/media with boosted volume
   - Break end: Alarm sound (few seconds, customizable duration)
   - Session end: Notification sound
 
@@ -217,19 +217,19 @@
     - Minimum break duration (default: 30 min)
     - Break scaling (enable/disable)
 - **Audio Settings:**
-  - Jump scare volume
+  - Surprise effect volume
   - Alarm volume
   - Music volume (if break music enabled)
   - Enable/disable break music
 - **Visual Settings:**
-  - Jump scare brightness boost
+  - Surprise effect brightness boost
   - Image display duration
 - **Media Management:**
   - Grid view: Thumbnails of all user-uploaded media
   - Upload new media: File picker (MP4, JPG, PNG)
   - Delete media: Remove user uploads
   - Preview: Click to preview media
-  - Hidden: Jump scares not visible here
+  - Hidden: Surprise effects not visible here
 - **Advanced Settings:**
   - Emergency escape hatch key combo (customize)
   - Emergency escape hold duration (1-5 seconds)
@@ -241,7 +241,7 @@
 
 ### 10. Notifications System
 - Break incoming: 2-minute warning before break (Normal/Strict modes only)
-- Break starting now: Jump scare triggered
+- Break starting now: Surprise effect triggered
 - Break ending soon: 1-minute warning
 - Break complete: Alarm sound + notification
 - Session complete: End-of-work notification
@@ -250,12 +250,12 @@
 
 ### 11. Psychological Design Tricks
 - **During Normal Mode Breaks:**
-  - ✅ Buttons stay active (temptation design)
-  - ✅ Streak counter prominent and growing
-  - ✅ Confirmation dialog for Skip/Snooze: "Are you sure? Streak will be affected!"
-  - ✅ Skip button turns redder as timer progresses
-  - ✅ Visual emphasis on streak as countdown nears end
-  - ✅ Micro-animations on "Take Break" button (encouraging)
+  - Buttons stay active (temptation design)
+  - Streak counter prominent and growing
+  - Confirmation dialog for Skip/Snooze: "Are you sure? Streak will be affected!"
+  - Skip button turns redder as timer progresses
+  - Visual emphasis on streak as countdown nears end
+  - Micro-animations on "Take Break" button (encouraging)
 - **General:**
   - Streak achievements with celebratory animations
   - Loss aversion messaging: "Don't break your 12-day streak!"
@@ -309,7 +309,7 @@
 ### Active Session Flow (Normal Mode):
 Work → (25 min) → Break Trigger
                     ↓
-                  Jump scare plays
+                  Surprise effect plays
                     ↓
                   Break window appears
                     ↓
@@ -355,16 +355,23 @@ Strict Mode Break or Focused End Break
 ## 🔧 Technical Architecture
 
 ### Technology Stack:
+Core:
 - Language: Python 3.10+
 - UI Framework: Flet
-- System Tray: pystray
 - Database: SQLite3
+
+System Integration:
+- System Tray: pystray
 - Audio: pygame.mixer
-- Brightness Control: screen_brightness_control
-- Volume Control: pycaw (Windows) / osascript (macOS)
-- Visualization: Matplotlib / Plotly
-- Scheduling: APScheduler
-- Keyboard Hooks: keyboard (for emergency escape detection)
+- Brightness: screen_brightness_control
+- Volume: pycaw (Windows) / osascript (macOS)
+- Keyboard Hooks: keyboard (for emergency escape)
+
+Visualization (for analytics):
+- Charts: Matplotlib / Plotly
+
+Timing:
+- Threading: threading
 
 ### Project Structure:
 ```
@@ -404,79 +411,94 @@ focusBreaker/
 │       └── settings.py
 ```
 
-## 🚀 Development Roadmap
+##  Progress Tracker (By Folder)
 
-### Phase 1: MVP (Core Functionality)
-- ✅ Database schema & models
-- Basic task creation
-- ✅ Timer logic (work/break)
-- Simple break notifications (text only)
-- Tray icon setup
-- Settings storage
+### ⏳ Data Layer (`src/data/`) - COMPLETED
+- ✅ Database operations and analytics queries
+- ✅ Data models and schemas
+- ✅ Package initialization
+- ✅ Export/import functionality (JSON backup/restore)
 
-### Phase 2: Mode Implementation
-- Normal Mode with all features
-- Strict Mode with full-screen overlay
-- Focused Mode with end break
-- Emergency escape hatch system (Strict + Focused)
+### ✅ Core Logic (`src/core/`) - COMPLETED
+- ✅ `escape_hatch.py` - Emergency escape system logic
+- ✅ `mode_controller.py` - Work mode management (Normal/Strict/Focused)
+- ✅ `scheduler.py` - Break scheduling and timing logic
+- ✅ `session_manager.py` - Session lifecycle management
+- ✅ `streak_manager.py` - Streak calculation and tracking
+- ✅ `timer.py` - Enhanced timer implementation
+- ✅ `__init__.py` - Package initialization
+- ✅ Comprehensive test suite (16+ tests covering all modules)
 
-### Phase 3: Media System
-- Media database table
-- File upload functionality
-- Random selection algorithm
-- Jump scare integration
-- Video/image playback
+### 🔄 System Integration (`src/system/`) - NEXT UP
+- Audio playback and volume controls
+- Screen brightness and overlay controls
+- Input blocking for strict mode
+- Package initialization
 
-### Phase 4: Streak & Analytics
-- Streak calculation logic (including emergency exit impact)
-- Session history tracking
-- Analytics dashboard
-- Visualization charts
-- Export functionality
+### ⏳ User Interface (`src/ui/`) - PENDING
+- Analytics dashboard (backend logic complete, UI pending)
+- Break notification windows
+- Main application interface
+- Settings panel
 
-### Phase 5: Polish & UX
-- Psychological design tricks
-- Animations & transitions
-- Sound effects
-- Notification system
-- Onboarding flow
+### ⏳ Configuration & Entry (`src/`) - PENDING
+- Application configuration
+- Application entry point
+- Package initialization
 
-### Phase 6: Advanced Features
-- Break music player
-- Encrypted jump scare folder
+### ⏳ Assets (`src/assets/`) - PENDING
+- Application icon
+- Default media files
+- Splash screen
+
+### ⏳ Tests (`src/tests/`) - MOSTLY COMPLETE
+- ✅ Escape hatch tests
+- ✅ Mode controller tests
+- ✅ Scheduler tests
+- ✅ Session manager tests (16 comprehensive tests)
+- ✅ Streak manager tests
+- ✅ Timer tests (updated)
+- ✅ Package initialization
+
+### ⏳ Project Configuration - MOSTLY COMPLETE
+- ✅ Project configuration
+- ✅ Dependencies
+- ✅ Git ignore rules
+- ✅ Project documentation
+- ✅ This specification
 - Data backup/restore
 - Advanced statistics
-- Customizable themes (future)
+- Customizable themes
+- Mobile companion app
 
 ## 📝 Implementation Notes
 
-### Priority Order:
-- ✅ Database design (COMPLETED)
-- 🟧Timer & break scheduler logic (PARTIALLY COMPLETED)
-- Basic UI windows (Flet)
-- Emergency escape hatch system
-- Tray integration
-- Media system
-- Streak tracking
-- Analytics dashboard
+### Development Strategy:
+**Folder-by-folder completion approach:**
+1. ✅ Complete all files in one folder with full testing
+2. Move to next folder only when current is fully functional
+3. Current sequence: `core/` → `system/` → `ui/` → `config.py` + `main.py` → `assets/`
 
-### Testing Considerations:
-- Test all three modes thoroughly
-- Verify streak calculations with/without emergency exits
-- Test emergency escape hatch (hold duration, key combos)
-- Ensure media plays correctly
-- Check database integrity after crashes
-- Test with various work durations
-- Verify escape hatch only available in correct modes
+### Current Focus:
+- 🔄 **Next**: `src/system/` folder (audio, display, input blocking system integration)
+- ⏳ **Then**: `src/ui/` folder (interface components and analytics dashboard)
+- ⏳ **Finally**: Configuration files and default assets
+- ✅ **Data Layer**: Fully complete with export/import functionality
 
-### Potential Challenges:
-- Full-screen overlay on different OS (Windows/macOS/Linux)
-- Input blocking in Strict mode (OS-specific)
-- Keyboard hook for emergency escape detection
-- Video playback performance
-- Brightness control compatibility
-- System tray icon behavior across platforms
-- Preventing escape hatch abuse while keeping it accessible
+### Testing Strategy:
+- ✅ Core modules fully tested (16+ comprehensive test cases)
+- Integration testing for system-level features (audio, display controls)
+- UI testing for responsiveness and user experience
+- Cross-platform compatibility testing
+- Emergency exit functionality validation
+- Database integrity and crash recovery testing
+
+### Technical Challenges:
+- Cross-platform system integration (Windows/macOS/Linux)
+- Real-time audio and display control
+- Input blocking mechanisms for strict mode
+- Performance optimization for media playback
+- System tray integration across different desktop environments
 
 ## 🎨 Future Enhancements (Post-Launch)
 - Themes: Dark mode, custom colors
@@ -512,6 +534,6 @@ The escape hatch serves as a safety valve for the strict enforcement systems:
   - But not so punishing that users avoid the app
 - **The goal:** Users should feel empowered, not trapped, while still maintaining the discipline structure that makes the app effective.
 
-**Version:** 1.0  
-**Last Updated:** December 26, 2024  
-**Status:** Specification Complete - Ready for Development
+**Version:** 1.1  
+**Last Updated:** January 3, 2026  
+**Status:** Core Implementation Complete - Test Suite Added
