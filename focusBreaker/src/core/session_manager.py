@@ -14,6 +14,7 @@ from core.mode_controller import (
     can_extend_session, requires_cooldown, get_cooldown_duration,
     has_breaks_during_work
 )
+from config import NotificationConfig
 from core.streak_manager import update_streaks_after_session
 
 logger = logging.getLogger(__name__)
@@ -253,7 +254,7 @@ class SessionManager:
                 on_tick=self._on_break_timer_tick,
                 on_complete=self._on_break_timer_complete,
                 on_warning=self._on_break_warning,
-                warning_seconds=60
+                warning_seconds=NotificationConfig.BREAK_END_WARNING_SECONDS
             )
             
             # Update state

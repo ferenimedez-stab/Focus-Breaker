@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Any, Optional
 from data.db import DBManager
 from data.models import Settings
+from config import ValidationRules, EscapeHatchConfig
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ def can_snooze_break(mode: str, session_id: Optional[int], db: Optional[DBManage
         
         if mode == 'normal':
             snooze_pass = db.getSnoozePassesRemaining(session_id)
-            return snooze_pass < 0
+            return snooze_pass > 0  
         
         else:
             return False
@@ -147,9 +148,7 @@ def get_mode_description(mode: str) -> str:
 def is_valid_mode(mode: str) -> bool:
     """Check if mode string is valid"""
     try:
-        valid_modes = ['normal', 'strict', 'focused']
-
-        return mode in valid_modes
+        return ValidationRules.validate_mode(mode)
     except Exception as e:
         logger.error(f"Error validating mode '{mode}': {e}")
         return False
@@ -157,9 +156,7 @@ def is_valid_mode(mode: str) -> bool:
 def get_available_modes() -> list:
     """Get list of all available modes"""
     try:
-        available_modes = ['normal', 'strict', 'focused']
-
-        return available_modes
+        return ['normal', 'strict', 'focused']
     except Exception as e:
         logger.error(f"Error getting available modes: {e}")
         return []
@@ -189,9 +186,12 @@ def get_mode_rules(mode: str, settings: Settings) -> Dict[str, Any]:
 def is_emergency_exit_available(mode: str) -> bool:
     """Check is emergency escape hatch is available, given mode"""
     try:
-        if mode == 'strict' or mode == 'focused':
-            return True
-        
+        if mode == 'normal':
+            return EscapeHatchConfig.AVAILABLE_IN_NORMAL
+        elif mode == 'strict':
+            return EscapeHatchConfig.AVAILABLE_IN_STRICT
+        elif mode == 'focused':
+            return EscapeHatchConfig.AVAILABLE_IN_FOCUSED
         else:
             return False
     except Exception as e:

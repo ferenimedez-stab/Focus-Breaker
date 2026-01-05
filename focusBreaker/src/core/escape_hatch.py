@@ -10,6 +10,7 @@ import threading
 from typing import Callable, Optional, Dict, Any
 from data.db import DBManager
 from data.models import Settings
+from config import EscapeHatchConfig
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +29,6 @@ class EscapeHatchDetector:
                  debounce_ms: Optional[int] = None):
         
         """Initialize escape hatch detector with validation"""
-        # Validate provided parameters first
-        if key_combo is not None and (not isinstance(key_combo, str) or not key_combo.strip()):
-            raise ValueError("key_combo must be a non-empty string")
-        
-        if hold_duration_seconds is not None and (not isinstance(hold_duration_seconds, (int, float)) or hold_duration_seconds <= 0):
-            raise ValueError("hold_duration_seconds must be a positive number")
-        
-        if debounce_ms is not None and debounce_ms < 0:
-            raise ValueError("debounce_ms must be non-negative")
-        
         # Determine final values: settings take precedence if enabled, otherwise use parameters
         if settings and hasattr(settings, 'escape_hatch_enabled') and settings.escape_hatch_enabled:
             final_key_combo = settings.escape_hatch_key_combo
@@ -45,11 +36,19 @@ class EscapeHatchDetector:
             final_debounce_ms = settings.escape_hatch_debounce_ms
         else:
             # Use provided parameters or defaults
-            final_key_combo = key_combo if key_combo is not None else "ctrl+alt+shift+e"
-            final_hold_duration = hold_duration_seconds if hold_duration_seconds is not None else 3.0
-            final_debounce_ms = debounce_ms if debounce_ms is not None else 100
+            final_key_combo = key_combo if key_combo is not None else EscapeHatchConfig.DEFAULT_KEY_COMBO
+            final_hold_duration = hold_duration_seconds if hold_duration_seconds is not None else EscapeHatchConfig.DEFAULT_HOLD_DURATION_SECONDS
+            final_debounce_ms = debounce_ms if debounce_ms is not None else EscapeHatchConfig.DEFAULT_DEBOUNCE_MS
         
         # Validate final values
+        if not isinstance(final_key_combo, str) or not final_key_combo.strip():
+            raise ValueError("key_combo must be a non-empty string")
+        
+        if not isinstance(final_hold_duration, (int, float)) or final_hold_duration < EscapeHatchConfig.MIN_HOLD_DURATION_SECONDS or final_hold_duration > EscapeHatchConfig.MAX_HOLD_DURATION_SECONDS:
+            raise ValueError(f"hold_duration_seconds must be between {EscapeHatchConfig.MIN_HOLD_DURATION_SECONDS} and {EscapeHatchConfig.MAX_HOLD_DURATION_SECONDS} seconds")
+        
+        if final_debounce_ms < 0:
+            raise ValueError("debounce_ms must be non-negative")
         if not isinstance(final_key_combo, str) or not final_key_combo.strip():
             raise ValueError("key_combo must be a non-empty string")
         
@@ -72,7 +71,7 @@ class EscapeHatchDetector:
         self.hold_duration_seconds = float(final_hold_duration)
         self.on_escape = on_escape
         self.on_progress = on_progress
-        self.debounce_ms = final_debounce_ms / 1000.0  # Convert to seconds
+        self.debounce_ms = final_debounce_ms / 1000.0 
         
         # State management
         self.is_active = False
@@ -239,6 +238,7 @@ def handle_emergency_exit(session_id: int, mode: str, reason: str, db: DBManager
     """
     try:
         session = db.getSession(session_id)
+        
         if not session:
             logger.error(f"Session {session_id} not found for emergency exit")
             return
@@ -339,11 +339,11 @@ def get_default_key_combo() -> str:
     Get default key combination for escape hatch
     """
     try:
-        return "ctrl+alt+shift+e"
+        return EscapeHatchConfig.DEFAULT_KEY_COMBO
     
     except Exception as e:
         logger.error(f"Error getting default key combo: {e}")
-        return "ctrl+alt+shift+e"  # Return safe default
+        return "ctrl+alt+shift+e"  
 
 
 def get_default_hold_duration() -> int:
@@ -351,11 +351,11 @@ def get_default_hold_duration() -> int:
     Get default hold duration in seconds
     """
     try:
-        return 3
+        return EscapeHatchConfig.DEFAULT_HOLD_DURATION_SECONDS
     
     except Exception as e:
         logger.error(f"Error getting default hold duration: {e}")
-        return 3  # Return safe default
+        return 3  
 
 
 def validate_key_combo(key_combo: str) -> bool:

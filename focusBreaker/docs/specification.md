@@ -413,13 +413,13 @@ focusBreaker/
 
 ##  Progress Tracker (By Folder)
 
-### ⏳ Data Layer (`src/data/`) - COMPLETED
+### ✅ Data Layer (`src/data/`) - COMPLETED FIRST [Dec 2025]
 - ✅ Database operations and analytics queries
 - ✅ Data models and schemas
 - ✅ Package initialization
 - ✅ Export/import functionality (JSON backup/restore)
 
-### ✅ Core Logic (`src/core/`) - COMPLETED
+### ✅ Core Logic (`src/core/`) - COMPLETED SECOND [Dec 2025]
 - ✅ `escape_hatch.py` - Emergency escape system logic
 - ✅ `mode_controller.py` - Work mode management (Normal/Strict/Focused)
 - ✅ `scheduler.py` - Break scheduling and timing logic
@@ -429,10 +429,19 @@ focusBreaker/
 - ✅ `__init__.py` - Package initialization
 - ✅ Comprehensive test suite (16+ tests covering all modules)
 
-### 🔄 System Integration (`src/system/`) - NEXT UP
-- Audio playback and volume controls
-- Screen brightness and overlay controls
-- Input blocking for strict mode
+### ✅ Configuration Centralization (`src/config.py`) - COMPLETED THIRD [Jan 5, 2026]
+- ✅ Centralized all configuration constants and settings
+- ✅ Revised all core modules to use config constants instead of hardcoded values
+- ✅ Optimized imports from `import config` to specific class imports (e.g., `from config import StreakConfig`)
+- ✅ Added missing config constants (STATISTICS_PERIOD_DAYS, HOURS_IN_DAY, etc.)
+- ✅ Comprehensive validation rules and configuration classes
+- ✅ Added config imports to system modules (audio.py, display.py, input_blocker.py)
+- ✅ Updated system modules to use AudioConfig, UIConfig, and EscapeHatchConfig constants
+
+### 🔄 System Integration (`src/system/`) - CURRENTLY WORKING ON [Jan 5, 2026]
+- ✅ Audio playback and volume controls (using AudioConfig constants)
+- ✅ Screen brightness and overlay controls (using UIConfig constants)
+- ✅ Input blocking for strict mode (using EscapeHatchConfig constants)
 - Package initialization
 
 ### ⏳ User Interface (`src/ui/`) - PENDING
@@ -451,7 +460,7 @@ focusBreaker/
 - Default media files
 - Splash screen
 
-### ⏳ Tests (`src/tests/`) - MOSTLY COMPLETE
+### ✅ Tests (`src/tests/`) - COMPLETED [Jan 5, 2026]
 - ✅ Escape hatch tests
 - ✅ Mode controller tests
 - ✅ Scheduler tests
@@ -474,20 +483,43 @@ focusBreaker/
 ## 📝 Implementation Notes
 
 ### Development Strategy:
-**Folder-by-folder completion approach:**
-1. ✅ Complete all files in one folder with full testing
-2. Move to next folder only when current is fully functional
-3. Current sequence: `core/` → `system/` → `ui/` → `config.py` + `main.py` → `assets/`
+**Actual development sequence followed:**
+1. ✅ **Data Layer First**: Started with `src/data/` (db.py, models.py) to establish the foundation
+2. ✅ **Core Business Logic Second**: Built all `src/core/` modules with initial hardcoded values
+3. ✅ **Configuration Centralization Third**: Created comprehensive `config.py` and revised all core modules to use config constants instead of hardcoded values
+4. 🔄 **System Integration Current**: Now working on `src/system/` modules using config variables
+5. ⏳ **UI Development Next**: `src/ui/` folder (interface components and analytics dashboard)
+6. ⏳ **Final Steps**: Configuration files, main.py entry point, and default assets
+
+**Key architectural decisions:**
+- **Bottom-up approach**: Data layer → Business logic → Configuration → System integration → UI
+- **Configuration-driven design**: All magic numbers eliminated, everything configurable
+- **Test-first development**: Comprehensive test suite built alongside core modules
+- **Modular imports**: Optimized from `import config` to specific class imports for performance
+- **Centralized configuration**: Single source of truth for all app settings and constants
+
+### Configuration Architecture:
+**Development sequence for config centralization:**
+1. Built core modules with initial hardcoded values for rapid development
+2. Created comprehensive `config.py` with specialized config classes (StreakConfig, TimerConfig, ModeConfig, etc.)
+6. Added config imports to system modules and updated them to use config constants
+8. Cleaned up requirements.txt by removing unnecessary transitive dependencies
+9. All system modules now use config variables for consistency and maintainability
 
 ### Current Focus:
-- 🔄 **Next**: `src/system/` folder (audio, display, input blocking system integration)
-- ⏳ **Then**: `src/ui/` folder (interface components and analytics dashboard)
-- ⏳ **Finally**: Configuration files and default assets
-- ✅ **Data Layer**: Fully complete with export/import functionality
+- 🔄 **Currently Working On**: `src/system/` folder (audio, display system integration using config variables)
+- ✅ **Completed**: `input_blocker.py` - Cross-platform input blocking with evdev for Linux, Quartz for macOS, keyboard/mouse hooks for Windows
+- ✅ **Completed**: Config imports added to all system modules (audio.py, display.py, input_blocker.py)
+- ✅ **Completed**: Fixed RichTestResult TypeError issues across all test files
+- ✅ **Completed**: Cleaned up requirements.txt - removed unnecessary transitive dependencies
+- ⏳ **Next**: `src/ui/` folder (interface components and analytics dashboard)
+- ⏳ **Finally**: Main entry point and default assets
+- ✅ **Completed**: Data layer, core business logic, and configuration centralization
 
-### Testing Strategy:
+### Testing:
 - ✅ Core modules fully tested (16+ comprehensive test cases)
-- Integration testing for system-level features (audio, display controls)
+- ✅ System modules tested (input_blocker: 29 comprehensive test cases covering initialization, blocking modes, cross-platform support, timeout mechanisms, escape detection, error handling, and cleanup)
+- ✅ Integration testing for system-level features (audio, display controls)
 - UI testing for responsiveness and user experience
 - Cross-platform compatibility testing
 - Emergency exit functionality validation
@@ -534,6 +566,6 @@ The escape hatch serves as a safety valve for the strict enforcement systems:
   - But not so punishing that users avoid the app
 - **The goal:** Users should feel empowered, not trapped, while still maintaining the discipline structure that makes the app effective.
 
-**Version:** 1.1  
-**Last Updated:** January 3, 2026  
-**Status:** Core Implementation Complete - Test Suite Added
+**Version:** 0.3.0  
+**Last Updated:** January 5, 2026  
+**Status:** Core Implementation Complete - Configuration Centralized - System Integration In Progress (Config Imports Complete, Test Suite Fixed)

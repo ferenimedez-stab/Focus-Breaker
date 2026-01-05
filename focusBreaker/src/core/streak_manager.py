@@ -6,6 +6,10 @@ Handles all streak logic: session streaks, perfect streaks, daily consistency
 from datetime import datetime
 from typing import Dict, Any, Optional
 from data.db import DBManager
+from config import StreakConfig, TimerConfig
+
+import logging
+logger = logging.getLogger(__name__)
 
 # ================================== MAIN STREAK UPDATES ==================================
 def update_session_streak(session_valid: bool, db: DBManager):
@@ -25,8 +29,8 @@ def update_session_streak(session_valid: bool, db: DBManager):
         
         db.updateStreak('session_streak', new_count, new_best)
    
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Error updating session streak: {e}")
 
 def update_perfect_session_streak(session_perfect: bool, db: DBManager):
     try:
@@ -45,9 +49,8 @@ def update_perfect_session_streak(session_perfect: bool, db: DBManager):
         
         db.updateStreak('perfect_session', new_count, new_best)
     
-    except Exception:
-        pass
-
+    except Exception as e:
+        logger.error(f"Error updating perfect session streak: {e}")
 
 def update_daily_consistency(session_date: str, db: DBManager):
     try:
@@ -76,8 +79,8 @@ def update_daily_consistency(session_date: str, db: DBManager):
         
         db.updateStreak('daily_consistency', new_count, new_best)
     
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Error updating daily consistency streak: {e}")
 
 def update_streaks_after_session(session_id: int, db: DBManager):
     try:
@@ -92,8 +95,8 @@ def update_streaks_after_session(session_id: int, db: DBManager):
         update_perfect_session_streak(session_perfect, db)
         update_daily_consistency(session.created_at, db)
    
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Error updating streaks after session: {e}")
 
 # ============================== STREAK QUALITY CALCULATIONS ============================== 
 def get_streak_status(streak_type: str, db: DBManager) -> Dict[str, Any]:
@@ -123,21 +126,23 @@ def get_streak_status(streak_type: str, db: DBManager) -> Dict[str, Any]:
             'display_text': text
         }
     
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error getting streak status for type '{streak_type}': {e}")
         return {}
 
 def get_all_streaks_summary(db: DBManager) -> Dict[str, Dict[str, Any]]:
     try:
         summary = {}
 
-        streak_types = ['session_streak', 'perfect_session', 'daily_consistency']
+        streak_types = StreakConfig.STREAK_TYPES
 
         for streak_type in streak_types:
             summary[streak_type] = get_streak_status(streak_type, db)
 
         return summary
    
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error getting all streaks summary: {e}")
         return {}
 
 # =================================== STREAK PREDICTIONS ==================================
@@ -152,19 +157,19 @@ def predict_streak_risk(streak_type: str, db: DBManager) -> Dict[str, Any]:
         
         last_updated = datetime.fromisoformat(streak.last_updated) if streak.last_updated else datetime.now()
         now = datetime.now()
-        hours_since = (now - last_updated).total_seconds() / 3600
+        hours_since = (now - last_updated).total_seconds() / TimerConfig.SECONDS_PER_HOUR
         
-        if hours_since > 18:
+        if hours_since > StreakConfig.DAILY_RISK_HIGH_HOURS:
             risk = 'high'
-            hours_until = 24 - hours_since
+            hours_until = StreakConfig.HOURS_IN_DAY - hours_since
             message = f"Work in {int(hours_until)}h or lose {streak.current_count}-day streak!"
-        elif hours_since > 12:
+        elif hours_since > StreakConfig.DAILY_RISK_MEDIUM_HOURS:
             risk = 'medium'
-            hours_until = 24 - hours_since
+            hours_until = StreakConfig.HOURS_IN_DAY - hours_since
             message = f"{int(hours_until)}h left to maintain streak"
         else:
             risk = 'low'
-            hours_until = 24 - hours_since
+            hours_until = StreakConfig.HOURS_IN_DAY - hours_since
             message = "Streak is safe for today"
         
         return {
@@ -174,13 +179,14 @@ def predict_streak_risk(streak_type: str, db: DBManager) -> Dict[str, Any]:
             'message': message
         }
    
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error predicting streak risk for type '{streak_type}': {e}")
         return {'at_risk': False}
 
 # =================================== MILESTONE CHECKING ==================================
 def check_streak_milestone(streak_type: str, db: DBManager) -> Optional[Dict[str, Any]]:
     try:
-        milestones = [5, 10, 25, 50, 100]
+        milestones = StreakConfig.STREAK_MILESTONES
 
         streak = db.getStreak(streak_type)
         if streak is None:
@@ -191,28 +197,34 @@ def check_streak_milestone(streak_type: str, db: DBManager) -> Optional[Dict[str
         if current_count not in milestones:
             return None
         
+        # Determine celebration level based on milestone
         if current_count == 5:
             level = 'small'
             emoji = '🎉'
-        
         elif current_count == 10:
             level = 'medium'
             emoji = '🔥'
-        
         elif current_count == 25:
             level = 'large'
             emoji = '🏆'
-        
         elif current_count == 50:
             level = 'huge'
             emoji = '🚀'
-        
         elif current_count == 100:
             level = 'legendary'
             emoji = '👑'
-        
+        elif current_count == 250:
+            level = 'epic'
+            emoji = '🌟'
+        elif current_count == 500:
+            level = 'mythic'
+            emoji = '💎'
+        elif current_count == 1000:
+            level = 'ultimate'
+            emoji = '👑'
         else:
-            return None
+            level = 'custom'
+            emoji = '🎊'
         
         message = f"{emoji} {current_count}-day streak! Amazing!"
 
@@ -223,7 +235,8 @@ def check_streak_milestone(streak_type: str, db: DBManager) -> Optional[Dict[str
             'celebration_level' : level
         }
    
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error checking streak milestone for type '{streak_type}': {e}")
         return None
 
 def can_recover_streak(streak_type: str, db: DBManager) -> bool:
@@ -241,11 +254,12 @@ def can_recover_streak(streak_type: str, db: DBManager) -> bool:
         
         last_updated = datetime.fromisoformat(streak.last_updated) if streak.last_updated else datetime.now()
         now = datetime.now()
-        hours_since = (now - last_updated).total_seconds() / 3600
+        hours_since = (now - last_updated).total_seconds() / TimerConfig.SECONDS_PER_HOUR
 
-        return (hours_since < 24)
+        return (hours_since < StreakConfig.HOURS_IN_DAY)
    
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error checking if streak can be recovered for type '{streak_type}': {e}")
         return False
 
 def get_streak_statistics(db: DBManager) -> Dict[str, Any]:
@@ -256,7 +270,7 @@ def get_streak_statistics(db: DBManager) -> Dict[str, Any]:
         
         longest = max(streak.best_count for streak in streaks) if streaks else 0
         
-        stats = db.getSessionStats(days = 365)
+        stats = db.getSessionStats(days = StreakConfig.STATISTICS_PERIOD_DAYS)
         
         total_sessions = stats.get('total_sessions', 0)
         completed_sessions = stats.get('completed_sessions', 0)
@@ -269,11 +283,21 @@ def get_streak_statistics(db: DBManager) -> Dict[str, Any]:
         total_breaks_taken = stats.get('total_breaks_taken', 0)
         total_breaks_snoozed = stats.get('total_breaks_snoozed', 0)
         total_breaks_skipped = stats.get('total_breaks_skipped', 0)
+        total_emergency_exits = stats.get('total_emergency_exits', 0)
         
-        total_breaks = total_breaks_taken + total_breaks_snoozed + total_breaks_skipped
+        # Calculate weighted quality score using config weights
+        weights = StreakConfig.QUALITY_SCORE_WEIGHTS
+        total_weighted_score = (
+            total_breaks_taken * weights['breaks_taken'] +
+            total_breaks_snoozed * weights['breaks_snoozed'] +
+            total_breaks_skipped * weights['breaks_skipped'] +
+            total_emergency_exits * weights['emergency_exits']
+        )
         
-        if total_breaks > 0:
-            average_quality_score = total_breaks_taken / total_breaks
+        total_actions = total_breaks_taken + total_breaks_snoozed + total_breaks_skipped + total_emergency_exits
+        
+        if total_actions > 0:
+            average_quality_score = max(0.0, min(1.0, total_weighted_score / total_actions))
         else:
             average_quality_score = 1.0  
         
@@ -302,8 +326,6 @@ def get_streak_statistics(db: DBManager) -> Dict[str, Any]:
         }
         
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Error getting streak statistics: {e}")
         
         return {

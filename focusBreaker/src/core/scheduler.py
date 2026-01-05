@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from data.db import DBManager
 from data.models import Settings
+from config import ModeConfig, EnergyConfig
 
 logger = logging.getLogger(__name__)    
 
@@ -19,7 +20,7 @@ def calculate_break_schedule(mode: str, work_duration_minutes: int, settings: Se
         if mode == 'focused':
             return []
         
-        if work_duration_minutes < 1:
+        if work_duration_minutes < ModeConfig.MIN_WORK_DURATION_MINUTES:
             return []
         
         work_interval = get_work_interval_for_mode(mode, settings)
@@ -34,6 +35,7 @@ def calculate_break_schedule(mode: str, work_duration_minutes: int, settings: Se
                 break_times.append(break_time)
         
         return break_times
+    
     except Exception as e:
         logger.error(f"Error calculating break schedule for mode '{mode}': {e}")
         return []
@@ -47,6 +49,7 @@ def calculate_elapsed_minutes(start_time: str) -> int:
         now = datetime.now()
         elapsed_seconds = (now - start).total_seconds()
         return int(elapsed_seconds / 60)
+    
     except Exception as e:
         logger.error(f"Error calculating elapsed minutes from '{start_time}': {e}")
         return 0
@@ -81,6 +84,7 @@ def redistribute_breaks_after_snooze(session_id: int, db: DBManager) -> List[int
             new_break_times.append(int(break_time))
 
         return new_break_times
+    
     except Exception as e:
         logger.error(f"Error redistributing breaks after snooze for session {session_id}: {e}")
         return []
@@ -100,37 +104,40 @@ def reschedule_break(break_id: int, snooze_duration_minutes: int, session_id: in
         redistribute_breaks_after_snooze(session_id, db)
 
         return new_time
+    
     except Exception as e:
         logger.error(f"Error rescheduling break {break_id}: {e}")
-        raise  # Re-raise since this function is expected to raise on error
+        raise  
 
 def get_work_interval_for_mode(mode: str, settings: Settings) -> int:
     """Get work interval (minutes before break) for a given mode"""
     try:
         work_interval = {
-            'normal' : settings.normal_work_interval_minutes,
-            'strict' : settings.strict_work_interval_minutes,
+            'normal' : settings.normal_work_interval_minutes if settings.normal_work_interval_minutes else ModeConfig.NORMAL_WORK_INTERVAL_MINUTES,
+            'strict' : settings.strict_work_interval_minutes if settings.strict_work_interval_minutes else ModeConfig.STRICT_WORK_INTERVAL_MINUTES,
             'focused' : 0
         }
 
-        return work_interval.get(mode, 25)
+        return work_interval.get(mode, ModeConfig.NORMAL_WORK_INTERVAL_MINUTES)
+    
     except Exception as e:
         logger.error(f"Error getting work interval for mode '{mode}': {e}")
-        return 25
+        return ModeConfig.NORMAL_WORK_INTERVAL_MINUTES
 
 def get_break_duration_for_mode(mode: str, settings: Settings) -> int:
     """Get break duration (minutes before break) for a given mode"""
     try:
         break_duration = {
-            'normal' : settings.normal_break_duration_minutes,
-            'strict' : settings.strict_break_duration_minutes,
-            'focused' : settings.focused_mandatory_break_minutes
+            'normal' : settings.normal_break_duration_minutes if settings.normal_break_duration_minutes else ModeConfig.NORMAL_BREAK_DURATION_MINUTES,
+            'strict' : settings.strict_break_duration_minutes if settings.strict_break_duration_minutes else ModeConfig.STRICT_BREAK_DURATION_MINUTES,
+            'focused' : settings.focused_mandatory_break_minutes if settings.focused_mandatory_break_minutes else ModeConfig.FOCUSED_MANDATORY_BREAK_MINUTES
         }
 
-        return break_duration.get(mode, 30)
+        return break_duration.get(mode, ModeConfig.FOCUSED_MANDATORY_BREAK_MINUTES)
+    
     except Exception as e:
         logger.error(f"Error getting break duration for mode '{mode}': {e}")
-        return 30
+        return ModeConfig.FOCUSED_MANDATORY_BREAK_MINUTES
 
 def get_next_break_time(current_time_minutes: int, break_times: List[int]) -> Optional[int]:
     """Find next upcoming break from schedule"""
@@ -140,6 +147,7 @@ def get_next_break_time(current_time_minutes: int, break_times: List[int]) -> Op
                 return break_time
         
         return None
+    
     except Exception as e:
         logger.error(f"Error getting next break time from schedule: {e}")
         return None
@@ -160,6 +168,7 @@ def validate_break_schedule(break_times: List[int], work_duration_minutes: int) 
             return False
         
         return True
+    
     except Exception as e:
         logger.error(f"Error validating break schedule: {e}")
         return False
@@ -168,20 +177,21 @@ def optimize_break_schedule_for_energy(work_duration_minutes: int, user_energy_p
     """Optimise break schedule based on user's energy pattern"""
     try:
         if user_energy_pattern == 'morning_person':
-            base_schedule = [20, 40, 70, 100]
+            base_schedule = EnergyConfig.MORNING_PERSON_BREAKS
 
         elif user_energy_pattern == "afternoon_slump":
-            base_schedule = [30, 60, 90]
+            base_schedule = EnergyConfig.AFTERNOON_SLUMP_BREAKS
 
         elif user_energy_pattern == "night_owl":
-            base_schedule = [35, 70, 105]
+            base_schedule = EnergyConfig.NIGHT_OWL_BREAKS
 
         else:
-            base_schedule = [25, 50, 75, 100]
+            base_schedule = EnergyConfig.NORMAL_BREAKS
         
         # Filter breaks that occur before the end
         optimized = [b for b in base_schedule if b < work_duration_minutes]
         return optimized
+    
     except Exception as e:
         logger.error(f"Error optimizing break schedule for energy pattern '{user_energy_pattern}': {e}")
         return []

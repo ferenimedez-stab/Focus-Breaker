@@ -8,6 +8,7 @@ import threading
 from datetime import datetime
 from typing import Optional, Callable
 from enum import Enum
+from config import NotificationConfig, TimerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class Timer:
 
             self._start_monotonic = None
             self._pause_monotonic = None
+
         except Exception as e:
             logger.error(f"Error initializing timer: {e}")
             raise
@@ -57,6 +59,7 @@ class Timer:
             self._thread = threading.Thread(target=self._run, daemon = True, name = "TimerThread")
 
             self._thread.start()
+        
         except Exception as e:
             logger.error(f"Error starting timer: {e}")
             self.state = TimerState.STOPPED
@@ -69,6 +72,7 @@ class Timer:
             self.pause_time = datetime.now()
             self._pause_monotonic = time.perf_counter()
             self.state = TimerState.PAUSED
+        
         except Exception as e:
             logger.error(f"Error pausing timer: {e}")
 
@@ -84,6 +88,7 @@ class Timer:
             self._pause_monotonic = None
             self.pause_time = None
             self.state = TimerState.RUNNING
+        
         except Exception as e:
             logger.error(f"Error resuming timer: {e}")
             self.state = TimerState.PAUSED
@@ -95,7 +100,8 @@ class Timer:
 
             self._stop_event.set()
             if self._thread and self._thread.is_alive():
-                self._thread.join(timeout = 1.0)
+                self._thread.join(timeout=TimerConfig.TIMER_THREAD_TIMEOUT_SECONDS)
+        
         except Exception as e:
             logger.error(f"Error stopping timer: {e}")
             self.state = TimerState.STOPPED
@@ -112,6 +118,7 @@ class Timer:
             self.paused_duration = 0.0
             self.elapsed_seconds = 0
             self.state = TimerState.STOPPED
+        
         except Exception as e:
             logger.error(f"Error resetting timer: {e}")
             # Force reset state even if error
@@ -137,6 +144,7 @@ class Timer:
             
             else:
                 return int(self.elapsed_seconds)
+        
         except Exception as e:
             logger.error(f"Error getting elapsed seconds: {e}")
             return 0
@@ -147,6 +155,7 @@ class Timer:
             remaining = self.duration_seconds - self.get_elapsed_seconds()
 
             return int(max(0, remaining))
+        
         except Exception as e:
             logger.error(f"Error getting remaining seconds: {e}")
             return 0
@@ -158,6 +167,7 @@ class Timer:
             elapsed_minutes = elapsed_seconds / 60.0
 
             return elapsed_minutes
+        
         except Exception as e:
             logger.error(f"Error getting elapsed minutes: {e}")
             return 0.0
@@ -169,6 +179,7 @@ class Timer:
             remaining_minutes = remaining_seconds // 60
 
             return int(remaining_minutes)
+        
         except Exception as e:
             logger.error(f"Error getting remaining minutes: {e}")
             return 0
@@ -182,6 +193,7 @@ class Timer:
             progress = (self.get_elapsed_seconds() / self.duration_seconds) * 100
             
             return max(0.0, min(100.0, progress))
+       
         except Exception as e:
             logger.error(f"Error getting progress percentage: {e}")
             return 0.0
@@ -190,6 +202,7 @@ class Timer:
         """Check if timer completed"""
         try:
             return self.state == TimerState.COMPLETED
+        
         except Exception as e:
             logger.error(f"Error checking if timer is completed: {e}")
             return False
@@ -198,6 +211,7 @@ class Timer:
         """Check if timer is running"""
         try:
             return self.state == TimerState.RUNNING
+        
         except Exception as e:
             logger.error(f"Error checking if timer is running: {e}")
             return False
@@ -206,6 +220,7 @@ class Timer:
         """Check if timer is paused"""
         try:
             return self.state == TimerState.PAUSED
+        
         except Exception as e:
             logger.error(f"Error checking if timer is paused: {e}")
             return False
@@ -228,9 +243,10 @@ class Timer:
                     if self.on_tick:
                         self.on_tick(self.elapsed_seconds)
                     
-                    time.sleep(1)
+                    time.sleep(TimerConfig.TIMER_UPDATE_INTERVAL_SECONDS)
                 else:
-                    time.sleep(0.1)
+                    time.sleep(TimerConfig.TIMER_PAUSE_CHECK_INTERVAL_SECONDS)
+        
         except Exception as e:
             logger.error(f"Error in timer background thread: {e}")
             self.state = TimerState.STOPPED
@@ -248,6 +264,7 @@ class WorkTimer(Timer):
             self.break_times = sorted(break_times)
             self.on_break_time = on_break_time
             self.triggered_breaks = set()
+        
         except Exception as e:
             logger.error(f"Error initializing work timer: {e}")
             raise
@@ -262,6 +279,7 @@ class WorkTimer(Timer):
                     self.triggered_breaks.add(i)  
                     return i
             return None
+        
         except Exception as e:
             logger.error(f"Error checking break time: {e}")
             return None
@@ -270,6 +288,7 @@ class WorkTimer(Timer):
         """Update break times (for snooze redistribution)"""
         try:
             self.break_times = sorted(new_break_times)
+        
         except Exception as e:
             logger.error(f"Error updating break times: {e}")
             self.break_times = []
@@ -297,10 +316,11 @@ class WorkTimer(Timer):
                     if self.on_tick:
                         self.on_tick(self.elapsed_seconds)
                 
-                    time.sleep(1)
+                    time.sleep(TimerConfig.TIMER_UPDATE_INTERVAL_SECONDS)
 
                 else:
-                    time.sleep(0.1)
+                    time.sleep(TimerConfig.TIMER_PAUSE_CHECK_INTERVAL_SECONDS)
+        
         except Exception as e:
             logger.error(f"Error in work timer background thread: {e}")
             self.state = TimerState.STOPPED
@@ -312,13 +332,14 @@ class BreakTimer(Timer):
                  on_tick: Optional[Callable] = None,
                  on_complete: Optional[Callable] = None,
                  on_warning: Optional[Callable] = None,
-                 warning_seconds: int = 60):
+                 warning_seconds: int = NotificationConfig.BREAK_END_WARNING_SECONDS):
         """Initialize break timer with optional warning"""
         try:
             super().__init__(duration_minutes, on_tick, on_complete)
             self.on_warning = on_warning
             self.warning_seconds = warning_seconds
             self.warning_triggered = False
+        
         except Exception as e:
             logger.error(f"Error initializing break timer: {e}")
             raise
@@ -349,10 +370,11 @@ class BreakTimer(Timer):
                     if self.on_tick:
                         self.on_tick(self.elapsed_seconds)
             
-                    time.sleep(1)
+                    time.sleep(TimerConfig.TIMER_UPDATE_INTERVAL_SECONDS)
                 
                 else:
-                    time.sleep(0.1)
+                    time.sleep(TimerConfig.TIMER_PAUSE_CHECK_INTERVAL_SECONDS)
+        
         except Exception as e:
             logger.error(f"Error in break timer background thread: {e}")
             self.state = TimerState.STOPPED
@@ -361,14 +383,15 @@ class BreakTimer(Timer):
 def format_time(seconds: int) -> str:
     """Format seconds into MM:SS or HH:MM:SS"""
     try:
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        secs = seconds % 60
+        hours = seconds // TimerConfig.SECONDS_PER_HOUR
+        minutes = (seconds % TimerConfig.SECONDS_PER_HOUR) // TimerConfig.SECONDS_PER_MINUTE
+        secs = seconds % TimerConfig.SECONDS_PER_MINUTE
 
         if hours > 0:
             return f"{hours:02d}:{minutes:02d}:{secs:02d}"
         else:
             return f"{minutes:02d}:{secs:02d}"
+    
     except Exception as e:
         logger.error(f"Error formatting time for {seconds} seconds: {e}")
         return "00:00"
@@ -376,7 +399,8 @@ def format_time(seconds: int) -> str:
 def seconds_to_minutes(seconds: int) -> int:
     """Convert seconds to minutes"""
     try:
-        return (seconds + 59) // 60
+        return (seconds + TimerConfig.SECONDS_PER_MINUTE - 1) // TimerConfig.SECONDS_PER_MINUTE
+    
     except Exception as e:
         logger.error(f"Error converting {seconds} seconds to minutes: {e}")
         return 0
@@ -384,7 +408,8 @@ def seconds_to_minutes(seconds: int) -> int:
 def minutes_to_seconds(minutes: int) -> int:
     """Convert minutes to seconds"""
     try:
-        return minutes * 60
+        return minutes * TimerConfig.SECONDS_PER_MINUTE
+    
     except Exception as e:
         logger.error(f"Error converting {minutes} minutes to seconds: {e}")
         return 0
